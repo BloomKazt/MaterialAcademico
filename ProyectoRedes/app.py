@@ -11,7 +11,7 @@ from flask_compress import Compress
 # ----------------------------
 
 CACHE_FOLDER = "cache"
-REMOTE_SERVER = "https://raw.githubusercontent.com/educational-content/demo/main/"
+REMOTE_SERVER = "https://raw.githubusercontent.com/BloomKazt/MaterialAcademico/ProyectoRedes/Material/"
 MANIFEST_URL = REMOTE_SERVER + "manifest.json"
 TTL_SECONDS = 60 * 60 * 24 * 7      # 7 días
 CACHE_LIMIT_MB = 100               # 100 MB de cache
@@ -197,3 +197,4 @@ if __name__ == "__main__":
     prefetch_files()
 
     app.run(host="0.0.0.0", port=5000)
+
