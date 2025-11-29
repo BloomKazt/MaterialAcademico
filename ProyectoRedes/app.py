@@ -11,10 +11,13 @@ from flask_compress import Compress
 # ----------------------------
 
 CACHE_FOLDER = "cache"
-REMOTE_SERVER = "https://raw.githubusercontent.com/BloomKazt/MaterialAcademico/ProyectoRedes/Material/"
+
+# *** RUTA CORRECTA: ¡IMPORTANTE! ***
+REMOTE_SERVER = "https://raw.githubusercontent.com/BloomKazt/MaterialAcademico/main/ProyectoRedes/Material/"  
 MANIFEST_URL = REMOTE_SERVER + "manifest.json"
+
 TTL_SECONDS = 60 * 60 * 24 * 7      # 7 días
-CACHE_LIMIT_MB = 100               # 100 MB de cache
+CACHE_LIMIT_MB = 100               # 100 MB
 PREFETCH_FILES = ["Taller1.pdf", "Imagen1.png"]
 
 # ----------------------------
@@ -30,7 +33,7 @@ logging.basicConfig(filename="cdn.log", level=logging.INFO,
 
 
 # ----------------------------
-# FUNCIONES DE UTILIDAD
+# UTILIDADES
 # ----------------------------
 
 def get_cache_size_mb():
@@ -52,8 +55,7 @@ def enforce_cache_limit():
         path = os.path.join(CACHE_FOLDER, f)
         files.append((path, os.path.getmtime(path)))
 
-    # Ordenar por archivo más viejo primero
-    files.sort(key=lambda x: x[1])
+    files.sort(key=lambda x: x[1])  # más viejo primero
 
     while get_cache_size_mb() > CACHE_LIMIT_MB:
         oldest = files.pop(0)[0]
@@ -100,37 +102,148 @@ def download_file(filename):
 
 
 def prefetch_files():
-    """Descarga archivos importantes al iniciar."""
     for f in PREFETCH_FILES:
         if not os.path.exists(os.path.join(CACHE_FOLDER, f)):
             download_file(f)
 
 
 # ----------------------------
-# RUTAS
+# RUTAS WEB
 # ----------------------------
 
 @app.route("/")
 def index():
     files = os.listdir(CACHE_FOLDER)
+
     html = """
-    <h1>Mini-CDN Educativo</h1>
-    <p>Servidor funcionando correctamente.</p>
-    
-    <h2>Archivos en caché:</h2>
-    <ul>
-    {% for f in files %}
-        <li><a href="/content/{{f}}">{{f}}</a></li>
-    {% endfor %}
-    </ul>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini-CDN Educativo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 0;
+        }
 
-    <h2>Descargar archivo nuevo:</h2>
-    <form action="/content" method="get">
-        <input name="filename" placeholder="ej: guia1.pdf">
-        <button type="submit">Descargar</button>
-    </form>
+        header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 900px;
+            margin: 30px auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 12px;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #ecf0f1;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+
+        li:hover {
+            background: #dfe6e9;
+        }
+
+        a {
+            text-decoration: none;
+            color: #2980b9;
+            font-weight: bold;
+        }
+
+        .input-box {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #bdc3c7;
+            font-size: 14px;
+        }
+
+        button {
+            background: #2980b9;
+            border: none;
+            padding: 10px 15px;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: .2s;
+        }
+
+        button:hover {
+            background: #1f6391;
+        }
+    </style>
+</head>
+<body>
+
+<header>Mini-CDN Educativo</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>Archivos en caché</h2>
+        <ul>
+            {% if files %}
+                {% for f in files %}
+                    <li><a href="/content/{{f}}">{{ f }}</a></li>
+                {% endfor %}
+            {% else %}
+                <p>No hay archivos aún.</p>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>Descargar archivo del repositorio</h2>
+        <form action="/content" method="get">
+            <div class="input-box">
+                <input name="filename" placeholder="Ejemplo: Taller1.pdf" required>
+                <button type="submit">Descargar</button>
+            </div>
+        </form>
+    </div>
+
+</div>
+
+</body>
+</html>
     """
-
     return render_template_string(html, files=files)
 
 
@@ -146,12 +259,10 @@ def get_content(filename):
     manifest = download_manifest()
     local_path = os.path.join(CACHE_FOLDER, filename)
 
-    # ----------------------------
-    # 1. Si el archivo existe en cache
-    # ----------------------------
+    # --- 1. Archivo en cache ---
     if os.path.exists(local_path):
 
-        # Revisar versión con manifest
+        # Comparar versión con manifest
         if manifest and filename in manifest:
             version_file = local_path + ".version"
             current_version = None
@@ -166,7 +277,7 @@ def get_content(filename):
                 with open(version_file, "w") as v:
                     v.write(manifest[filename])
 
-        # Revisar expiración
+        # TTL expirado
         elif is_expired(local_path):
             logging.info(f"Archivo expirado: {filename}, actualizando")
             download_file(filename)
@@ -174,14 +285,12 @@ def get_content(filename):
         logging.info(f"Servido desde cache: {filename}")
         return send_from_directory(CACHE_FOLDER, filename)
 
-    # ----------------------------
-    # 2. Si no existe, descargarlo
-    # ----------------------------
+    # --- 2. Descargar si no está ---
     new_file = download_file(filename)
     if not new_file:
         return jsonify({"error": "Archivo no disponible"}), 404
 
-    # Guardar versión
+    # Guardar versión del manifest
     if manifest and filename in manifest:
         with open(new_file + ".version", "w") as v:
             v.write(manifest[filename])
@@ -190,11 +299,11 @@ def get_content(filename):
 
 
 # ----------------------------
-# INICIO DEL SERVIDOR
+# INICIO
 # ----------------------------
 
 if __name__ == "__main__":
     prefetch_files()
-
     app.run(host="0.0.0.0", port=5000)
+
 
