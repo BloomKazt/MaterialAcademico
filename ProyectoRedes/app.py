@@ -15,7 +15,7 @@ REMOTE_SERVER = "https://raw.githubusercontent.com/educational-content/demo/main
 MANIFEST_URL = REMOTE_SERVER + "manifest.json"
 TTL_SECONDS = 60 * 60 * 24 * 7      # 7 días
 CACHE_LIMIT_MB = 100               # 100 MB de cache
-PREFETCH_FILES = ["guia1.pdf", "guia2.pdf", "lectura.txt"]
+PREFETCH_FILES = ["Taller1.pdf", "Imagen1.png"]
 
 # ----------------------------
 # INICIALIZACIONES
@@ -195,4 +195,5 @@ def get_content(filename):
 
 if __name__ == "__main__":
     prefetch_files()
+
     app.run(host="0.0.0.0", port=5000)
