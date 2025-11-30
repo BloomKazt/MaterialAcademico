@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""
-Mini-CDN Educativo — versión ampliada
-Mejoras incluidas:
- - Métricas Prometheus (/metrics)
- - Contadores y histograma de latencia
- - Logs estructurados en JSON (cdn.log) para Wazuh/Elastic
- - Endpoint /status con estado del cache y últimas entradas de log
- - Arranque opcional de captura pcap (tcpdump) para análisis en Wireshark
- - Zeek-style lightweight logging (http_zeek.log)
- - Escritura de archivo de reglas Suricata de ejemplo (suricata_rules.rules)
- - Prefetch, TTL, límite de cache, manifest remoto (como antes)
-NOTA: instalar dependencias:
- pip install flask flask_compress requests prometheus_client python-json-logger flask-limiter
- tcpdump debe estar presente en el sistema para la captura pcap automática.
-"""
 
 import os
 import time
@@ -26,10 +11,8 @@ from threading import Thread
 from flask import Flask, send_from_directory, jsonify, render_template_string, request, abort
 from flask_compress import Compress
 
-# Prometheus
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-# JSON logging
 from pythonjsonlogger import jsonlogger
 
 # ----------------------------
@@ -40,14 +23,13 @@ CACHE_FOLDER = "cache"
 REMOTE_SERVER = "https://raw.githubusercontent.com/BloomKazt/MaterialAcademico/main/ProyectoRedes/Material/"
 MANIFEST_URL = REMOTE_SERVER + "manifest.json"
 
-TTL_SECONDS = 60 * 60 * 24 * 7      # 7 días
-CACHE_LIMIT_MB = 100                # 100 MB
+TTL_SECONDS = 60 * 60 * 24 * 7      
+CACHE_LIMIT_MB = 100                
 PREFETCH_FILES = ["Taller1.pdf", "Imagen1.png"]
 
-# Control pcap
-ENABLE_PCAP_CAPTURE = True         # Cambia a False si no quieres capturar
+ENABLE_PCAP_CAPTURE = True         
 PCAP_FILENAME = "cdn_traffic.pcap"
-PCAP_INTERFACE = "any"             # "any" o interfaz específica
+PCAP_INTERFACE = "any"            
 PCAP_FILTER = "port 5000"
 
 # Suricata rules filename
@@ -70,10 +52,8 @@ log_handler.setFormatter(log_formatter)
 
 logger = logging.getLogger("mini_cdn")
 logger.setLevel(logging.INFO)
-# Evitar handlers duplicados si se ejecuta varias veces en entorno interactivo
 if not logger.hasHandlers():
     logger.addHandler(log_handler)
-# También loguear errores en stderr
 stderr_handler = logging.StreamHandler()
 stderr_handler.setFormatter(log_formatter)
 logger.addHandler(stderr_handler)
@@ -230,7 +210,6 @@ def start_pcap_capture():
 
     cmd = ["tcpdump", "-i", PCAP_INTERFACE, PCAP_FILTER, "-w", PCAP_FILENAME]
     try:
-        # Spawn in a thread to avoid bloquear el arranque si tcpdump pide permisos
         def target():
             global pcap_process
             try:
@@ -355,16 +334,14 @@ def get_content(filename):
     """
     start_time = time.time()
     endpoint = "/content"
-    REQUEST_COUNT.labels(endpoint=endpoint, code="0").inc()  # código real actualizado al final
+    REQUEST_COUNT.labels(endpoint=endpoint, code="0").inc()  
 
     manifest = download_manifest()
     local_path = os.path.join(CACHE_FOLDER, filename)
 
-    # --- 1. Archivo en cache ---
     try:
         if os.path.exists(local_path):
 
-            # Comparar versión con manifest
             if manifest and filename in manifest:
                 version_file = local_path + ".version"
                 current_version = None
@@ -379,7 +356,6 @@ def get_content(filename):
                     with open(version_file, "w") as v:
                         v.write(manifest[filename])
 
-            # TTL expirado
             elif is_expired(local_path):
                 logger.info(json.dumps({"event": "expired", "file": filename}))
                 download_file(filename)
@@ -389,7 +365,6 @@ def get_content(filename):
             elapsed = time.time() - start_time
             REQUEST_LATENCY.labels(endpoint=endpoint).observe(elapsed)
 
-            # Zeek-style log
             zeek_style_log(request.method, request.path, 200, os.path.getsize(local_path) if os.path.exists(local_path) else None)
 
             logger.info(json.dumps({
@@ -404,7 +379,6 @@ def get_content(filename):
     except Exception as e:
         logger.error(json.dumps({"event": "serve_cache_error", "file": filename, "error": str(e)}))
 
-    # --- 2. Descargar si no está ---
     new_file = download_file(filename)
     if not new_file:
         REQUEST_COUNT.labels(endpoint=endpoint, code="404").inc()
@@ -414,7 +388,6 @@ def get_content(filename):
         logger.warning(json.dumps({"event": "file_missing", "file": filename, "client_ip": request.remote_addr}))
         return jsonify({"error": "Archivo no disponible"}), 404
 
-    # Guardar versión del manifest
     try:
         if manifest and filename in manifest:
             with open(new_file + ".version", "w") as v:
@@ -477,15 +450,11 @@ def zeeklog():
         return jsonify({"error": "Zeek log no existe aún"}), 404
 
 
-# ----------------------------
-# UTIL: leer últimas líneas de un archivo (efficiente-ish)
-# ----------------------------
 def get_last_log_entries(n=50, logfile="cdn.log"):
     try:
         if not os.path.exists(logfile):
             return []
         with open(logfile, "rb") as f:
-            # Leer desde el final en bloques
             f.seek(0, os.SEEK_END)
             filesize = f.tell()
             block_size = 1024
@@ -512,18 +481,14 @@ def get_last_log_entries(n=50, logfile="cdn.log"):
 # ----------------------------
 
 if __name__ == "__main__":
-    # Crear archivo de reglas de Suricata (ejemplo educativo)
     write_suricata_rules()
 
-    # Prefetch inicial
     prefetch_files()
 
-    # Arrancar captura pcap (si está habilitada)
     start_pcap_capture()
 
     try:
-        # Ejecutar Flask
         app.run(host="0.0.0.0", port=5000)
     finally:
-        # Intentar limpiar captura pcap al terminar
         stop_pcap_capture()
+
