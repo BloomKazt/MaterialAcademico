@@ -32,7 +32,6 @@ PCAP_FILENAME = "cdn_traffic.pcap"
 PCAP_INTERFACE = "any"            
 PCAP_FILTER = "port 5000"
 
-# Suricata rules filename
 SURICATA_RULES_FILE = "suricata_rules.rules"
 
 # ----------------------------
@@ -491,4 +490,5 @@ if __name__ == "__main__":
         app.run(host="0.0.0.0", port=5000)
     finally:
         stop_pcap_capture()
+
 
